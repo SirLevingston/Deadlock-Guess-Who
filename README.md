@@ -1,0 +1,1 @@
+I have never coded before and i wanted to play a game of guess who with the deadlock characters. 90% of this code is from google gemini, I wish it wasn't and if anyone wants to take this, code it themselves and send it to me so i dont have to use ai code, that would be awesome, but in the meantime while i learn code, this is what it is.
