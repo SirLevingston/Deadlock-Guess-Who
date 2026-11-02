@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guess Who? - Deadlock Edition</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tone.js for Audio Effects -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <style>
+    :root { 
+      --ink: #173c41; 
+      --cream: #f8f2e6; 
+      --accent: #f5b94c; 
+      --line: #c9d9d4; 
+    }
+
+    * { box-sizing: border-box; }
+
+    body { 
+      margin: 0; 
+      font-family: "DM Sans", sans-serif; 
+      color: var(--ink); 
+      background-color: #eef4f2;
+    }
+
+    /* Board Layout Grid */
+    .board-grid { 
+      display: grid; 
+      grid-template-columns: repeat(11, minmax(0, 1fr)); 
+      gap: clamp(6px, 1vw, 14px); 
+    }
+
+    /* Interactive Cards */
+    .character-card { 
+      position: relative; 
+      display: flex;
+      flex-direction: column;
+      width: 100%; 
+      padding: 6px; 
+      border: 2px solid var(--line); 
+      border-radius: 12px; 
+      background: #fffdf8; 
+      box-shadow: 0 4px 0 #b6cbc5; 
+      cursor: pointer; 
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease, filter 0.2s ease, background-color 0.2s ease; 
+      user-select: none;
+    }
+
+    .character-card:hover { 
+      transform: translateY(-4px); 
+      box-shadow: 0 8px 0 #9eb8b1; 
+    }
+
+    .character-card.edit-mode-active {
+      border-color: #e99523;
+      animation: pulse-edit 1.5s infinite;
+    }
+
+    @keyframes pulse-edit {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(233, 149, 35, 0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(233, 149, 35, 0); }
+    }
+
+    .character-card:focus-visible { 
+      outline: 3px solid #e99523; 
+      outline-offset: 3px; 
+    }
+
+    /* Eliminated Card State */
+    .character-card[aria-pressed="true"] { 
+      border-color: #d37a61; 
+      box-shadow: 0 2px 0 #b8715e; 
+      background: #f7ebe8;
+      transform: translateY(2px) scale(0.97);
+    }
+
+    .portrait { 
+      position: relative; 
+      overflow: hidden; 
+      width: 100%; 
+      aspect-ratio: 1; 
+      border-radius: 8px; 
+      background: #e4e8df; 
+    }
+
+    .portrait img { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: cover; 
+      transition: filter 0.25s ease, opacity 0.25s ease, transform 0.3s ease; 
+    }
+
+    .character-card[aria-pressed="true"] img { 
+      filter: grayscale(1) contrast(0.7); 
+      opacity: 0.25; 
+      transform: scale(0.95);
+    }
+
+    /* Red Elimination Cross Overlay */
+    .eliminated-mark { 
+      position: absolute; 
+      inset: 0; 
+      display: grid; 
+      place-items: center; 
+      opacity: 0; 
+      color: #c0392b; 
+      font-family: "Fraunces", serif; 
+      font-size: clamp(34px, 4vw, 65px); 
+      font-weight: 800; 
+      line-height: 1; 
+      transform: scale(0.5) rotate(-10deg); 
+      transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+      pointer-events: none;
+    }
+
+    .character-card[aria-pressed="true"] .eliminated-mark { 
+      opacity: 1; 
+      transform: scale(1) rotate(0deg); 
+    }
+
+    .slot-number { 
+      display: block; 
+      margin-top: 6px; 
+      padding: 4px 2px; 
+      text-align: center; 
+      font-weight: 700; 
+      font-size: clamp(10px, 0.85vw, 12px); 
+      letter-spacing: 0.02em; 
+      line-height: 1.2; 
+      background: #f8f2e6; 
+      color: var(--ink);
+      border: 1px solid #c9d9d4; 
+      border-radius: 6px; 
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background 0.2s ease;
+    }
+
+    .character-card[aria-pressed="true"] .slot-number {
+      background: #e6d3cf;
+      color: #8c4235;
+      border-color: #d8b4ac;
+      text-decoration: line-through;
+    }
+
+    /* Buttons */
+    .btn-action { 
+      background: var(--accent); 
+      color: var(--ink); 
+      transition: all 0.2s ease; 
+    }
+    
+    .btn-action:hover { 
+      background: #ffd16f; 
+      transform: translateY(-2px); 
+      box-shadow: 0 4px 12px rgba(245, 185, 76, 0.4);
+    }
+    
+    .btn-action:active { 
+      transform: translateY(0); 
+    }
+
+    /* Modal Backdrop */
+    .modal-backdrop {
+      background: rgba(23, 60, 65, 0.75);
+      backdrop-filter: blur(4px);
+    }
+
+    /* Responsive Breakpoints */
+    @media(max-width: 1280px) { .board-grid { grid-template-columns: repeat(9, minmax(0, 1fr)); } }
+    @media(max-width: 1024px) { .board-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+    @media(max-width: 768px)  { .board-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+    @media(max-width: 480px)  { 
+      .board-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } 
+      .character-card { padding: 4px; border-radius: 8px; }
+      .slot-number { font-size: 9px; padding: 2px 1px; }
+    }
+  </style>
+</head>
+<body class="w-full min-h-screen flex flex-col">
+
+  <!-- Header Section -->
+  <header class="w-full px-5 py-6 md:px-10 md:py-7" style="background: #173c41;">
+    <div class="mx-auto max-w-[1600px] flex flex-col md:flex-row items-center justify-between gap-5">
+      <div class="text-center md:text-left">
+        <p class="uppercase tracking-[.25em] font-extrabold text-xs mb-1" style="color: #f5b94c;">
+          DEADLOCK EDITION · 44 CHARACTERS
+        </p>
+        <h1 class="leading-tight text-3xl md:text-4xl font-extrabold" style="font-family: Fraunces, serif; color: #fffdf8;">
+          Guess Who? Board
+        </h1>
+        <p class="mt-1 text-sm font-medium" style="color: #d1e3dd;">
+          Tap a character to eliminate or restore. Draw a random mystery character or edit portraits to custom URLs!
+        </p>
+      </div>
+
+      <!-- Header Controls -->
+      <div class="flex flex-wrap items-center justify-center gap-3">
+        <!-- Draw Random Card -->
+        <button id="draw-card-btn" class="btn-action rounded-full px-5 py-2.5 font-bold text-sm flex items-center gap-2 shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          Draw Your Secret Card
+        </button>
+
+        <!-- Edit Card Mode -->
+        <button id="toggle-edit-btn" class="bg-teal-800 text-teal-100 hover:bg-teal-700 rounded-full px-5 py-2.5 font-bold text-sm flex items-center gap-2 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+          <span id="edit-btn-text">Customize Board</span>
+        </button>
+
+        <!-- Reset Board Button -->
+        <button id="reset-board-btn" class="bg-red-800/80 text-red-100 hover:bg-red-700 rounded-full px-5 py-2.5 font-bold text-sm flex items-center gap-2 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          Reset Board
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Area -->
+  <main class="w-full flex-grow px-3 py-6 sm:px-6 md:px-10">
+    <div class="mx-auto max-w-[1600px]">
+      
+      <!-- Stats & Search Bar -->
+      <div class="mb-5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-6">
+          <div>
+            <span class="text-xs text-slate-500 font-bold uppercase tracking-wider block">Remaining</span>
+            <span id="remaining-count" class="text-2xl font-black text-teal-800">44</span>
+            <span class="text-sm font-semibold text-slate-400">/ 44</span>
+          </div>
+          <div class="h-8 w-px bg-slate-200"></div>
+          <div>
+            <span class="text-xs text-slate-500 font-bold uppercase tracking-wider block">Eliminated</span>
+            <span id="eliminated-count" class="text-2xl font-black text-rose-600">0</span>
+          </div>
+        </div>
+
+        <!-- Search / Filter Input -->
+        <div class="w-full sm:w-72 relative">
+          <input type="text" id="search-input" placeholder="Filter character..." class="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+      </div>
+
+      <!-- Character Grid -->
+      <div id="board-grid" class="board-grid" aria-label="Guess Who Character Board">
+        <!-- Cards injected dynamically via JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="py-4 text-center text-xs text-slate-500 font-medium">
+    Interactive Guess Who? Board · Deadlock Hero Lineup
+  </footer>
+
+  <!-- Secret Card Modal -->
+  <div id="secret-card-modal" class="fixed inset-0 modal-backdrop flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl border-4 border-amber-400 transform transition-all scale-95 opacity-0" id="secret-card-content">
+      <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Your Mystery Character</h3>
+      <h2 id="secret-name" class="text-2xl font-black text-teal-900 mb-4" style="font-family: Fraunces, serif;">-</h2>
+      <div class="w-48 h-48 mx-auto rounded-xl overflow-hidden border-2 border-slate-200 mb-5 shadow-inner">
+        <img id="secret-img" src="" alt="Secret Character" class="w-full h-full object-cover">
+      </div>
+      <button id="close-secret-btn" class="w-full btn-action py-3 rounded-xl font-extrabold text-sm shadow">
+        Got It, Keep It Secret!
+      </button>
+    </div>
+  </div>
+
+  <!-- Custom Edit Card Modal -->
+  <div id="edit-card-modal" class="fixed inset-0 modal-backdrop flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200">
+      <h3 class="text-lg font-bold text-teal-900 mb-4">Edit Character</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Character Name</label>
+          <input type="text" id="edit-name-input" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Image URL</label>
+          <input type="text" id="edit-url-input" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none" placeholder="https://example.com/photo.jpg">
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="cancel-edit-btn" class="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg">Cancel</button>
+        <button id="save-edit-btn" class="btn-action px-5 py-2 font-bold text-sm rounded-lg shadow">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript App Code -->
+  <script>
+    // List of 44 Deadlock characters with local image file paths
+    const DEADLOCK_HEROES = [
+      { name: "Abrams", img: "images/Abrams.png" },
+      { name: "Apollo", img: "images/Apollo.png" },
+      { name: "Baba", img: "images/Baba.png" },
+      { name: "Bebop", img: "images/Bebop.png" },
+      { name: "Billy", img: "images/Billy.png" },
+      { name: "Calico", img: "images/Calico.png" },
+      { name: "Celeste", img: "images/Celeste.png" },
+      { name: "Deadman Danny", img: "images/Deadman Danny.png" },
+      { name: "The Doorman", img: "images/The Doorman.png" },
+      { name: "Drifter", img: "images/Drifter.png" },
+      { name: "Dynamo", img: "images/Dynamo.png" },
+      { name: "Graves", img: "images/Graves.png" },
+      { name: "Grey Talon", img: "images/Grey Talon.png" },
+      { name: "Haze", img: "images/Haze.png" },
+      { name: "Holliday", img: "images/Holliday.png" },
+      { name: "Infernus", img: "images/Infernus.png" },
+      { name: "Ivy", img: "images/Ivy.png" },
+      { name: "Kelvin", img: "images/Kelvin.png" },
+      { name: "Lady Geist", img: "images/Lady Geist.png" },
+      { name: "Lash", img: "images/Lash.png" },
+      { name: "McGinnis", img: "images/McGinnis.png" },
+      { name: "Mina", img: "images/Mina.png" },
+      { name: "Mirage", img: "images/Mirage.png" },
+      { name: "Mo & Krill", img: "images/Mo & Krill.png" },
+      { name: "Nurse Harrow", img: "images/Nurse Harrow.png" },
+      { name: "Paige", img: "images/Paige.png" },
+      { name: "Paradox", img: "images/Paradox.png" },
+      { name: "Pocket", img: "images/Pocket.png" },
+      { name: "Rat King", img: "images/Rat King.png" },
+      { name: "Rem", img: "images/Rem.png" },
+      { name: "Seven", img: "images/Seven.png" },
+      { name: "Shiv", img: "images/Shiv.png" },
+      { name: "Silver", img: "images/Silver.png" },
+      { name: "Sinclair", img: "images/Sinclair.png" },
+      { name: "Solomon", img: "images/Solomon.png" },
+      { name: "Venator", img: "images/Venator.png" },
+      { name: "Victor", img: "images/Victor.png" },
+      { name: "Vindicta", img: "images/Vindicta.png" },
+      { name: "Violet", img: "images/Violet.png" },
+      { name: "Viscous", img: "images/Viscous.png" },
+      { name: "Vyper", img: "images/Vyper.png" },
+      { name: "Warden", img: "images/Warden.png" },
+      { name: "Wraith", img: "images/Wraith.png" },
+      { name: "Yamato", img: "images/Yamato.png" }
+    ];
+
+    // Helper to generate themed avatar fallback images if wiki image isn't available
+    function getAvatarUrl(name) {
+      return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6cbc5,f8f2e6,173c41`;
+    }
+
+    // Build the initial 44 dataset with wiki image links
+    let characters = DEADLOCK_HEROES.map((hero, index) => ({
+      id: index + 1,
+      name: hero.name,
+      img: hero.img
+    }));
+
+    let eliminatedSet = new Set();
+    let isEditMode = false;
+    let editingCardId = null;
+
+    // Tone.js Audio Synthesizer
+    let synth = null;
+    function playClickSound(isEliminating) {
+      try {
+        if (!synth && window.Tone) {
+          synth = new Tone.MembraneSynth().toDestination();
+          synth.volume.value = -12;
+        }
+        if (synth && Tone.context.state === 'running') {
+          synth.triggerAttackRelease(isEliminating ? "C2" : "G3", "8n");
+        }
+      } catch (e) {
+        // Continue silently if audio context is blocked
+      }
+    }
+
+    // Render the grid board
+    function renderBoard() {
+      const grid = document.getElementById("board-grid");
+      const filterTerm = document.getElementById("search-input").value.toLowerCase().trim();
+      
+      grid.innerHTML = "";
+
+      characters.forEach(char => {
+        if (filterTerm && !char.name.toLowerCase().includes(filterTerm)) {
+          return;
+        }
+
+        const isEliminated = eliminatedSet.has(char.id);
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `character-card ${isEditMode ? 'edit-mode-active' : ''}`;
+        card.setAttribute("aria-label", char.name);
+        card.setAttribute("aria-pressed", isEliminated ? "true" : "false");
+
+        card.innerHTML = `
+          <span class="portrait">
+            <img src="${char.img}" alt="${char.name}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400x400/173c41/f5b94c?text=${encodeURIComponent(char.name)}';">
+            <span class="eliminated-mark" aria-hidden="true">×</span>
+          </span>
+          <span class="slot-number" aria-hidden="true">${char.name}</span>
+        `;
+
+        card.addEventListener("click", () => handleCardClick(char.id));
+        grid.appendChild(card);
+      });
+
+      updateStats();
+    }
+
+    // Handle Toggling Cards or Opening Edit Modal
+    function handleCardClick(id) {
+      if (window.Tone && Tone.context.state !== 'running') {
+        Tone.start();
+      }
+
+      if (isEditMode) {
+        openEditModal(id);
+      } else {
+        const newlyEliminated = !eliminatedSet.has(id);
+        if (newlyEliminated) {
+          eliminatedSet.add(id);
+        } else {
+          eliminatedSet.delete(id);
+        }
+        playClickSound(newlyEliminated);
+        renderBoard();
+      }
+    }
+
+    // Update Counter Numbers
+    function updateStats() {
+      const remainingCount = characters.length - eliminatedSet.size;
+      document.getElementById("remaining-count").textContent = remainingCount;
+      document.getElementById("eliminated-count").textContent = eliminatedSet.size;
+    }
+
+    // Draw Secret Mystery Character Modal
+    document.getElementById("draw-card-btn").addEventListener("click", () => {
+      const randomChar = characters[Math.floor(Math.random() * characters.length)];
+      document.getElementById("secret-name").textContent = randomChar.name;
+      const secretImg = document.getElementById("secret-img");
+      secretImg.src = randomChar.img;
+      secretImg.onerror = () => {
+        secretImg.src = `https://placehold.co/400x400/173c41/f5b94c?text=${encodeURIComponent(randomChar.name)}`;
+      };
+
+      const modal = document.getElementById("secret-card-modal");
+      const content = document.getElementById("secret-card-content");
+      modal.classList.remove("hidden");
+      setTimeout(() => {
+        content.classList.remove("scale-95", "opacity-0");
+        content.classList.add("scale-100", "opacity-100");
+      }, 10);
+    });
+
+    document.getElementById("close-secret-btn").addEventListener("click", () => {
+      const modal = document.getElementById("secret-card-modal");
+      const content = document.getElementById("secret-card-content");
+      content.classList.remove("scale-100", "opacity-100");
+      content.classList.add("scale-95", "opacity-0");
+      setTimeout(() => modal.classList.add("hidden"), 150);
+    });
+
+    // Reset Board State
+    document.getElementById("reset-board-btn").addEventListener("click", () => {
+      eliminatedSet.clear();
+      document.getElementById("search-input").value = "";
+      renderBoard();
+    });
+
+    // Toggle Customization Mode
+    document.getElementById("toggle-edit-btn").addEventListener("click", () => {
+      isEditMode = !isEditMode;
+      const btnText = document.getElementById("edit-btn-text");
+      const btn = document.getElementById("toggle-edit-btn");
+      
+      if (isEditMode) {
+        btnText.textContent = "Done Customizing";
+        btn.classList.remove("bg-teal-800", "text-teal-100");
+        btn.classList.add("bg-amber-400", "text-teal-950");
+      } else {
+        btnText.textContent = "Customize Board";
+        btn.classList.remove("bg-amber-400", "text-teal-950");
+        btn.classList.add("bg-teal-800", "text-teal-100");
+      }
+      renderBoard();
+    });
+
+    // Edit Modal Functions
+    function openEditModal(id) {
+      editingCardId = id;
+      const char = characters.find(c => c.id === id);
+      if (!char) return;
+
+      document.getElementById("edit-name-input").value = char.name;
+      document.getElementById("edit-url-input").value = char.img;
+      document.getElementById("edit-card-modal").classList.remove("hidden");
+    }
+
+    document.getElementById("cancel-edit-btn").addEventListener("click", () => {
+      document.getElementById("edit-card-modal").classList.add("hidden");
+      editingCardId = null;
+    });
+
+    document.getElementById("save-edit-btn").addEventListener("click", () => {
+      if (!editingCardId) return;
+      const newName = document.getElementById("edit-name-input").value.trim();
+      const newUrl = document.getElementById("edit-url-input").value.trim();
+
+      characters = characters.map(char => {
+        if (char.id === editingCardId) {
+          return {
+            ...char,
+            name: newName || char.name,
+            img: newUrl || char.img
+          };
+        }
+        return char;
+      });
+
+      document.getElementById("edit-card-modal").classList.add("hidden");
+      editingCardId = null;
+      renderBoard();
+    });
+
+    // Realtime Search Filter Event Listener
+    document.getElementById("search-input").addEventListener("input", renderBoard);
+
+    // Initial Setup
+    window.onload = () => {
+      renderBoard();
+    };
+  </script>
+</body>
+</html>
