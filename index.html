@@ -326,6 +326,32 @@
     let editingCardId = null;
     let activeSecretChar = null;
 
+    // Set and render the active secret card banner above the board
+    function setActiveSecretCard(char) {
+      activeSecretChar = char;
+      const banner = document.getElementById("active-secret-banner");
+      const nameElem = document.getElementById("active-secret-name");
+      const imgElem = document.getElementById("active-secret-img");
+
+      if (char) {
+        nameElem.textContent = char.name;
+        imgElem.src = char.img;
+        imgElem.onerror = () => {
+          imgElem.src = getFallbackImg(char.name);
+        };
+        banner.classList.remove("hidden");
+        banner.classList.add("flex");
+      } else {
+        banner.classList.add("hidden");
+        banner.classList.remove("flex");
+      }
+    }
+
+    // Dynamic SVG Image Fallback
+    function getFallbackImg(name) {
+      return `https://placehold.co/400x400/173c41/f5b94c?text=${encodeURIComponent(name)}`;
+    }
+
     // Tone.js Audio Synthesizer
     let synth = null;
     function playClickSound(isEliminating) {
@@ -338,16 +364,11 @@
           synth.triggerAttackRelease(isEliminating ? "C2" : "G3", "8n");
         }
       } catch (e) {
-        // Continue silently if audio context is restricted
+        // Continue silently if audio context is blocked
       }
     }
 
-    // Helper for generating image placeholders
-    function getFallbackImg(name) {
-      return `https://placehold.co/400x400/173c41/f5b94c?text=${encodeURIComponent(name)}`;
-    }
-
-    // Render grid board
+    // Render the grid board
     function renderBoard() {
       const grid = document.getElementById("board-grid");
       const filterTerm = document.getElementById("search-input").value.toLowerCase().trim();
@@ -367,11 +388,11 @@
         card.setAttribute("aria-pressed", isEliminated ? "true" : "false");
 
         card.innerHTML = `
-          <span class="portrait relative overflow-hidden w-full aspect-square rounded-lg bg-slate-200 block">
-            <img src="${char.img}" alt="${char.name}" loading="lazy" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='${getFallbackImg(char.name)}';">
+          <span class="portrait relative overflow-hidden w-full aspect-square rounded-lg bg-[#e4e8df] block">
+            <img src="${char.img}" alt="${char.name}" class="w-full h-full object-cover block" loading="lazy" onerror="this.onerror=null;this.src='${getFallbackImg(char.name)}';">
             <span class="eliminated-mark" aria-hidden="true">×</span>
           </span>
-          <span class="slot-number mt-1.5 py-1 px-0.5 text-center font-bold text-[10px] sm:text-xs bg-[#f8f2e6] text-[#173c41] border border-[#c9d9d4] rounded-md truncate block" aria-hidden="true">${char.name}</span>
+          <span class="slot-number block mt-1.5 p-1 text-center font-bold text-[10px] sm:text-xs leading-tight bg-[#f8f2e6] text-[#173c41] border border-[#c9d9d4] rounded-md truncate transition-all" aria-hidden="true">${char.name}</span>
         `;
 
         card.addEventListener("click", () => handleCardClick(char.id));
@@ -406,16 +427,10 @@
       const remainingCount = characters.length - eliminatedSet.size;
       document.getElementById("remaining-count").textContent = remainingCount;
       document.getElementById("eliminated-count").textContent = eliminatedSet.size;
-      
-      // Update header subtitle total character count automatically
-      const headerTotal = document.querySelector("header p");
-      if (headerTotal) {
-        headerTotal.textContent = `DEADLOCK EDITION · ${characters.length} CHARACTERS`;
-      }
     }
 
-    // Draw Secret Mystery Character Modal
-    function drawSecretCard() {
+    // Draw Secret Mystery Character Logic
+    function drawRandomSecretCard() {
       const randomChar = characters[Math.floor(Math.random() * characters.length)];
       setActiveSecretCard(randomChar);
 
@@ -435,8 +450,8 @@
       }, 10);
     }
 
-    document.getElementById("draw-card-btn").addEventListener("click", drawSecretCard);
-    document.getElementById("redraw-banner-btn").addEventListener("click", drawSecretCard);
+    document.getElementById("draw-card-btn").addEventListener("click", drawRandomSecretCard);
+    document.getElementById("redraw-banner-btn").addEventListener("click", drawRandomSecretCard);
 
     document.getElementById("close-secret-btn").addEventListener("click", () => {
       const modal = document.getElementById("secret-card-modal");
@@ -516,7 +531,7 @@
     // Realtime Search Filter Event Listener
     document.getElementById("search-input").addEventListener("input", renderBoard);
 
-    // Initial Setup
+    // Initial Setup on Load
     window.onload = () => {
       renderBoard();
     };
