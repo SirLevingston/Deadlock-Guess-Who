@@ -32,7 +32,14 @@
       background-color: #eef4f2;
     }
 
-    /* Interactive Card Base */
+    /* Board Layout Grid */
+    .board-grid { 
+      display: grid; 
+      grid-template-columns: repeat(11, minmax(0, 1fr)); 
+      gap: clamp(6px, 1vw, 14px); 
+    }
+
+    /* Interactive Cards */
     .character-card { 
       position: relative; 
       display: flex;
@@ -44,7 +51,7 @@
       background: #fffdf8; 
       box-shadow: 0 4px 0 #b6cbc5; 
       cursor: pointer; 
-      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); 
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease, filter 0.2s ease, background-color 0.2s ease; 
       user-select: none;
     }
 
@@ -63,6 +70,11 @@
       50% { box-shadow: 0 0 0 6px rgba(233, 149, 35, 0); }
     }
 
+    .character-card:focus-visible { 
+      outline: 3px solid #e99523; 
+      outline-offset: 3px; 
+    }
+
     /* Eliminated Card State */
     .character-card[aria-pressed="true"] { 
       border-color: #d37a61; 
@@ -71,7 +83,19 @@
       transform: translateY(2px) scale(0.97);
     }
 
+    .portrait { 
+      position: relative; 
+      overflow: hidden; 
+      width: 100%; 
+      aspect-ratio: 1; 
+      border-radius: 8px; 
+      background: #e4e8df; 
+    }
+
     .portrait img { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: cover; 
       transition: filter 0.25s ease, opacity 0.25s ease, transform 0.3s ease; 
     }
 
@@ -92,6 +116,7 @@
       font-family: "Fraunces", serif; 
       font-size: clamp(34px, 4vw, 65px); 
       font-weight: 800; 
+      line-height: 1; 
       transform: scale(0.5) rotate(-10deg); 
       transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
       pointer-events: none;
@@ -100,6 +125,25 @@
     .character-card[aria-pressed="true"] .eliminated-mark { 
       opacity: 1; 
       transform: scale(1) rotate(0deg); 
+    }
+
+    .slot-number { 
+      display: block; 
+      margin-top: 6px; 
+      padding: 4px 2px; 
+      text-align: center; 
+      font-weight: 700; 
+      font-size: clamp(10px, 0.85vw, 12px); 
+      letter-spacing: 0.02em; 
+      line-height: 1.2; 
+      background: #f8f2e6; 
+      color: var(--ink);
+      border: 1px solid #c9d9d4; 
+      border-radius: 6px; 
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background 0.2s ease;
     }
 
     .character-card[aria-pressed="true"] .slot-number {
@@ -121,28 +165,42 @@
       transform: translateY(-2px); 
       box-shadow: 0 4px 12px rgba(245, 185, 76, 0.4);
     }
+    
+    .btn-action:active { 
+      transform: translateY(0); 
+    }
 
     /* Modal Backdrop */
     .modal-backdrop {
       background: rgba(23, 60, 65, 0.75);
       backdrop-filter: blur(4px);
     }
+
+    /* Responsive Breakpoints */
+    @media(max-width: 1280px) { .board-grid { grid-template-columns: repeat(9, minmax(0, 1fr)); } }
+    @media(max-width: 1024px) { .board-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+    @media(max-width: 768px)  { .board-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+    @media(max-width: 480px)  { 
+      .board-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } 
+      .character-card { padding: 4px; border-radius: 8px; }
+      .slot-number { font-size: 9px; padding: 2px 1px; }
+    }
   </style>
 </head>
 <body class="w-full min-h-screen flex flex-col">
 
   <!-- Header Section -->
-  <header class="w-full px-5 py-6 md:px-10 md:py-7 bg-[#173c41]">
+  <header class="w-full px-5 py-6 md:px-10 md:py-7" style="background: #173c41;">
     <div class="mx-auto max-w-[1600px] flex flex-col md:flex-row items-center justify-between gap-5">
       <div class="text-center md:text-left">
-        <p class="uppercase tracking-[.25em] font-extrabold text-xs mb-1 text-[#f5b94c]">
+        <p class="uppercase tracking-[.25em] font-extrabold text-xs mb-1" style="color: #f5b94c;">
           DEADLOCK EDITION · 44 CHARACTERS
         </p>
-        <h1 class="leading-tight text-3xl md:text-4xl font-extrabold text-[#fffdf8]" style="font-family: Fraunces, serif;">
+        <h1 class="leading-tight text-3xl md:text-4xl font-extrabold" style="font-family: Fraunces, serif; color: #fffdf8;">
           Guess Who? Board
         </h1>
-        <p class="mt-1 text-sm font-medium text-[#d1e3dd]">
-          Tap a character to eliminate or restore. Draw a secret mystery card or edit character details!
+        <p class="mt-1 text-sm font-medium" style="color: #d1e3dd;">
+          Tap a character to eliminate or restore. Draw a random mystery character or edit portraits to custom URLs!
         </p>
       </div>
 
@@ -173,23 +231,6 @@
   <main class="w-full flex-grow px-3 py-6 sm:px-6 md:px-10">
     <div class="mx-auto max-w-[1600px]">
       
-      <!-- Current Active Secret Card Banner -->
-      <div id="active-secret-banner" class="mb-5 hidden items-center justify-between gap-4 bg-gradient-to-r from-amber-500/10 via-teal-500/10 to-amber-500/10 p-4 rounded-xl border-2 border-amber-400/60 shadow-sm">
-        <div class="flex items-center gap-4">
-          <div class="w-14 h-14 rounded-lg overflow-hidden border border-slate-300 shadow-sm shrink-0 bg-slate-100">
-            <img id="active-secret-img" src="" alt="Your Secret Card" class="w-full h-full object-cover">
-          </div>
-          <div>
-            <span class="text-[10px] font-black uppercase tracking-widest text-amber-700 block">Your Secret Character</span>
-            <h2 id="active-secret-name" class="text-xl font-extrabold text-teal-950" style="font-family: Fraunces, serif;">-</h2>
-          </div>
-        </div>
-        <button id="redraw-banner-btn" class="btn-action rounded-lg px-4 py-2 font-bold text-xs flex items-center gap-1.5 shadow-sm">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-          Draw New
-        </button>
-      </div>
-
       <!-- Stats & Search Bar -->
       <div class="mb-5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <div class="flex items-center gap-6">
@@ -213,7 +254,7 @@
       </div>
 
       <!-- Character Grid -->
-      <div id="board-grid" class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2.5" aria-label="Guess Who Character Board">
+      <div id="board-grid" class="board-grid" aria-label="Guess Who Character Board">
         <!-- Cards injected dynamically via JS -->
       </div>
     </div>
@@ -229,7 +270,7 @@
     <div class="bg-white rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl border-4 border-amber-400 transform transition-all scale-95 opacity-0" id="secret-card-content">
       <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Your Mystery Character</h3>
       <h2 id="secret-name" class="text-2xl font-black text-teal-900 mb-4" style="font-family: Fraunces, serif;">-</h2>
-      <div class="w-48 h-48 mx-auto rounded-xl overflow-hidden border-2 border-slate-200 mb-5 shadow-inner bg-slate-100">
+      <div class="w-48 h-48 mx-auto rounded-xl overflow-hidden border-2 border-slate-200 mb-5 shadow-inner">
         <img id="secret-img" src="" alt="Secret Character" class="w-full h-full object-cover">
       </div>
       <button id="close-secret-btn" class="w-full btn-action py-3 rounded-xl font-extrabold text-sm shadow">
@@ -261,8 +302,7 @@
 
   <!-- JavaScript App Code -->
   <script>
-    // List of Deadlock characters. 
-    // To add a new character: simply add { name: "Character Name" } or { name: "Character Name", img: "custom_path.jpg" } to this list!
+    // List of 44 Deadlock characters with local image file paths
     const DEADLOCK_HEROES = [
       { name: "Abrams", img: "Abrams_card.png" },
       { name: "Apollo", img: "Apollo_card.png" },
@@ -308,23 +348,23 @@
       { name: "Warden", img: "Warden_card.png" },
       { name: "Wraith", img: "Wraith_card.png" },
       { name: "Yamato", img: "Yamato_card.png" }
-      // Example for adding a new hero:
-      // { name: "New Hero Name", img: "New_Hero_card.png" }
-      // or simply:
-      // { name: "New Hero Name" } (defaults img to "New Hero Name_card.png")
     ];
 
-    // Build the dataset dynamically
+    // Helper to generate themed avatar fallback images if wiki image isn't available
+    function getAvatarUrl(name) {
+      return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6cbc5,f8f2e6,173c41`;
+    }
+
+    // Build the initial 44 dataset with wiki image links
     let characters = DEADLOCK_HEROES.map((hero, index) => ({
       id: index + 1,
       name: hero.name,
-      img: hero.img || `${hero.name.replace(/\s+/g, '_')}_card.png`
+      img: hero.img
     }));
 
     let eliminatedSet = new Set();
     let isEditMode = false;
     let editingCardId = null;
-    let activeSecretChar = null;
 
     // Tone.js Audio Synthesizer
     let synth = null;
@@ -338,16 +378,11 @@
           synth.triggerAttackRelease(isEliminating ? "C2" : "G3", "8n");
         }
       } catch (e) {
-        // Continue silently if audio context is restricted
+        // Continue silently if audio context is blocked
       }
     }
 
-    // Helper for generating image placeholders
-    function getFallbackImg(name) {
-      return `https://placehold.co/400x400/173c41/f5b94c?text=${encodeURIComponent(name)}`;
-    }
-
-    // Render grid board
+    // Render the grid board
     function renderBoard() {
       const grid = document.getElementById("board-grid");
       const filterTerm = document.getElementById("search-input").value.toLowerCase().trim();
@@ -367,11 +402,11 @@
         card.setAttribute("aria-pressed", isEliminated ? "true" : "false");
 
         card.innerHTML = `
-          <span class="portrait relative overflow-hidden w-full aspect-square rounded-lg bg-slate-200 block">
-            <img src="${char.img}" alt="${char.name}" loading="lazy" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='${getFallbackImg(char.name)}';">
+          <span class="portrait">
+            <img src="${char.img}" alt="${char.name}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400x400/173c41/f5b94c?text=${encodeURIComponent(char.name)}';">
             <span class="eliminated-mark" aria-hidden="true">×</span>
           </span>
-          <span class="slot-number mt-1.5 py-1 px-0.5 text-center font-bold text-[10px] sm:text-xs bg-[#f8f2e6] text-[#173c41] border border-[#c9d9d4] rounded-md truncate block" aria-hidden="true">${char.name}</span>
+          <span class="slot-number" aria-hidden="true">${char.name}</span>
         `;
 
         card.addEventListener("click", () => handleCardClick(char.id));
@@ -406,24 +441,16 @@
       const remainingCount = characters.length - eliminatedSet.size;
       document.getElementById("remaining-count").textContent = remainingCount;
       document.getElementById("eliminated-count").textContent = eliminatedSet.size;
-      
-      // Update header subtitle total character count automatically
-      const headerTotal = document.querySelector("header p");
-      if (headerTotal) {
-        headerTotal.textContent = `DEADLOCK EDITION · ${characters.length} CHARACTERS`;
-      }
     }
 
     // Draw Secret Mystery Character Modal
-    function drawSecretCard() {
+    document.getElementById("draw-card-btn").addEventListener("click", () => {
       const randomChar = characters[Math.floor(Math.random() * characters.length)];
-      setActiveSecretCard(randomChar);
-
       document.getElementById("secret-name").textContent = randomChar.name;
       const secretImg = document.getElementById("secret-img");
       secretImg.src = randomChar.img;
       secretImg.onerror = () => {
-        secretImg.src = getFallbackImg(randomChar.name);
+        secretImg.src = `https://placehold.co/400x400/173c41/f5b94c?text=${encodeURIComponent(randomChar.name)}`;
       };
 
       const modal = document.getElementById("secret-card-modal");
@@ -433,10 +460,7 @@
         content.classList.remove("scale-95", "opacity-0");
         content.classList.add("scale-100", "opacity-100");
       }, 10);
-    }
-
-    document.getElementById("draw-card-btn").addEventListener("click", drawSecretCard);
-    document.getElementById("redraw-banner-btn").addEventListener("click", drawSecretCard);
+    });
 
     document.getElementById("close-secret-btn").addEventListener("click", () => {
       const modal = document.getElementById("secret-card-modal");
@@ -450,7 +474,6 @@
     document.getElementById("reset-board-btn").addEventListener("click", () => {
       eliminatedSet.clear();
       document.getElementById("search-input").value = "";
-      setActiveSecretCard(null);
       renderBoard();
     });
 
@@ -495,15 +518,11 @@
 
       characters = characters.map(char => {
         if (char.id === editingCardId) {
-          const updated = {
+          return {
             ...char,
             name: newName || char.name,
             img: newUrl || char.img
           };
-          if (activeSecretChar && activeSecretChar.id === char.id) {
-            setActiveSecretCard(updated);
-          }
-          return updated;
         }
         return char;
       });
